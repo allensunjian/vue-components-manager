@@ -1,3 +1,5 @@
+import Vue from "vue"
+
 const ConstState = {
     MIX: "mixin"
 }
@@ -9,13 +11,18 @@ let shortcut = {
     sunlib: null,
 }
 
+let compManGOLOpts = {
+    root: "app",
+    methodsLibName: "compManGOL"
+}
+
 const created = function () {
 
     let opts = this.$options, compName = opts.name;
 
     opts.name && this.$lib_set(compName, this);
 
-    opts.name == "app" &&   shortcut.setPage(this);
+    opts.name == compManGOLOpts.root &&   shortcut.setPage(this);
 
     this.onshow = _show.bind(this);
 
@@ -42,8 +49,8 @@ const issueOption = function (options, to) {
     let global = window._getPage();
     if (!global) return;
     let pageOption = options.pageOption; // TODO：页面差异处理
-    let globalHookFns = options.globalHookFns;
-    globalHookFns.forEach(key => global[key](to) )
+    let globalHookFns = global[compManGOLOpts.methodsLibName]();
+    Object.keys(globalHookFns).forEach(key => globalHookFns[key].call(global,to) )
 }
 
 const initGlobalLib = ($V) => {
@@ -98,19 +105,26 @@ const initGlobalLib = ($V) => {
     $V.prototype.$getGloabl = () => window._getPage();
 }
 
-export default function ($V) {
-    if (initState) return;
-    shortcut.setPage = window._setPage = VMpage => window._global__page = VMpage;
-    shortcut.getPage = window._getPage = () => window._global__page;
-    initGlobalLib($V)
-    $V.use(createGuard());
-    initState = true;
+const _ForEach = router => {
+    let routerForEach = router.beforeEach;
+    router.beforeEach = function (eachFn) {
+        let eachTampFn = function (to, from, next) {
+            let metaData = to.matched[0].meta || {}
+            let pageOption = {
+                pageOption: metaData.pageOption
+            }
+            let options = Object.assign({}, pageOption)
+            next = lib_next(to, from, next, options);
+            eachFn.apply(this, [to, from, next])
+        }
+        routerForEach.call(this, eachTampFn)
+    }
 }
 
-export const createGuard = () => {return {install}}
+const createGuard = () => {return {install}}
 
-export const lib_next = function (to, from, next) {
-    return (path, options) => {
+const lib_next = function (to, from, next, options) {
+    return (path, noOpts) => {
         let comTo = window._sunComponentsLib_v1.getCom(to.name);
         let comFrom = window._sunComponentsLib_v1.getCom(from.name);
 
@@ -127,8 +141,25 @@ export const lib_next = function (to, from, next) {
         comTo.onshow && comTo.onshow(to.query);
         comFrom.onleave && comFrom.onleave(to.name);
 
-        options && issueOption(options, to);
+        !noOpts && options && issueOption(options, to);
 
-        next(path);
+        next(path || undefined);
+    }
+}
+
+export default function (router) {
+    let $V = Vue;
+    if (initState) return;
+    shortcut.setPage = window._setPage = VMpage => window._global__page = VMpage;
+    shortcut.getPage = window._getPage = () => window._global__page;
+    initGlobalLib($V)
+    $V.use(createGuard());
+    initState = true;
+    _ForEach(router);
+    return {
+        config: options => {
+            if (!options || options.constructor.name !== "Object") return;
+            Object.keys(compManGOLOpts).forEach(key => options[key] && (compManGOLOpts[key] = options[key]))
+        }
     }
 }
