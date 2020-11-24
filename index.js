@@ -3,13 +3,15 @@ import Vue from "vue"
 const ConstState = {
     MIX: "mixin"
 }
-let initState = false;
+let initState = false
 
 let shortcut = {
     setPage: null,
     getPage: null,
     sunlib: null,
 }
+
+let forEachFnLib = [];
 
 let compManGOLOpts = {
     root: "app",
@@ -18,15 +20,15 @@ let compManGOLOpts = {
 
 const created = function () {
 
-    let opts = this.$options, compName = opts.name;
+    let opts = this.$options, compName = opts.name
 
-    opts.name && this.$lib_set(compName, this);
+    opts.name && this.$lib_set(compName, this)
 
-    opts.name == compManGOLOpts.root &&   shortcut.setPage(this);
+    opts.name == compManGOLOpts.root &&   shortcut.setPage(this)
 
-    this.onshow = _show.bind(this);
+    this.onshow = _show.bind(this)
 
-    this.onleave = _leave.bind(this);
+    this.onleave = _leave.bind(this)
 
     shortcut.sunlib.tirrgerEvent(compName, this)
 }
@@ -43,122 +45,122 @@ const _leave = function () {
     leave && leave.apply(this, arguments)
 }
 
-const install = $V => $V[ConstState.MIX](_config);
+const install = $V => $V[ConstState.MIX](_config)
 
 const issueOption = function (options, to) {
-    let global = window._getPage();
-    if (!global) return;
-    let pageOption = options.pageOption; // TODO：页面差异处理
-    let globalHookFns = global[compManGOLOpts.methodsLibName]();
+    let global = window._getPage()
+    if (!global) return
+    //let pageOption = options.pageOption // TODO：页面差异处理
+    let globalHookFns = global[compManGOLOpts.methodsLibName]()
     Object.keys(globalHookFns).forEach(key => globalHookFns[key].call(global,to) )
 }
 
 const initGlobalLib = ($V) => {
     !window._sunComponentsLib_v1 && (shortcut.sunlib = window._sunComponentsLib_v1 = (() => {
-        let componentsLib = {};
-        let eventQueue = {};
+        let componentsLib = {}
+        let eventQueue = {}
         return {
             pushEvent: function (page, hook, query) {
-                let events = eventQueue[page];
+                let events = eventQueue[page]
                 let hookObj = {hook,query}
 
                 if (!events) {
-                    eventQueue[page] = hookObj;
+                    eventQueue[page] = hookObj
                     return
                 }
 
                 if (typeof events == 'object') {
-                    eventQueue[page] = [events, hookObj];
+                    eventQueue[page] = [events, hookObj]
                     return
                 }
 
                 if (Array.isArray(events)) {
-                    events.push(hookObj);
+                    events.push(hookObj)
                 }
 
             },
             tirrgerEvent: function (page, currentCom) {
-                if (!page) return;
-                let events = eventQueue[page];
+                if (!page) return
+                let events = eventQueue[page]
 
-                if (!events) return;
+                if (!events) return
 
                 if (Array.isArray(events)) {
-                    events.forEach(event => currentCom[event.hook] && currentCom[event.hook](event.query));
-                    delete eventQueue[page];
+                    events.forEach(event => currentCom[event.hook] && currentCom[event.hook](event.query))
+                    delete eventQueue[page]
                     return
                 }
 
                 if (typeof events == 'object') {
-                    currentCom[events.hook] && currentCom[events.hook](events.query);
-                    delete eventQueue[page];
+                    currentCom[events.hook] && currentCom[events.hook](events.query)
+                    delete eventQueue[page]
                     return
                 }
 
             },
             getCom: name => componentsLib[name],
-            setCom: (name, component) => componentsLib[name] = component
+            setCom: (name, component) => componentsLib[name] = component,
+            components: componentsLib
         }
-    })());
-    $V.prototype.$lib_set = window._sunComponentsLib_v1.setCom;
-    $V.prototype.$lib_get = window._sunComponentsLib_v1.getCom;
-    $V.prototype.$getGloabl = () => window._getPage();
+    })())
+    $V.prototype.$lib_set = window._sunComponentsLib_v1.setCom
+    $V.prototype.$lib_get = window._sunComponentsLib_v1.getCom
+    $V.prototype.$getGloabl = () => window._getPage()
 }
 
 const _ForEach = router => {
-    let routerForEach = router.beforeEach;
-    router.beforeEach = function (eachFn) {
-        let eachTampFn = function (to, from, next) {
-            let metaData = to.matched[0].meta || {}
-            let pageOption = {
-                pageOption: metaData.pageOption
-            }
-            let options = Object.assign({}, pageOption)
-            next = lib_next(to, from, next, options);
-            eachFn.apply(this, [to, from, next])
-        }
-        routerForEach.call(this, eachTampFn)
-    }
+    let routerForEach = router.beforeEach
+
+    router.beforeEach = eachFn => forEachFnLib.push(eachFn)
+
+    routerForEach.call(router, (to, from, next) => {
+        let metaData = (to.matched[0] && to.matched[0].meta) || {}
+        let pageOption = {pageOption: metaData.pageOption}
+        let options = Object.assign({}, pageOption)
+        next = lib_next(to, from, next, options)
+        forEachFnLib.forEach(fn => fn.apply(null, [to, from, next]))
+        forEachFnLib.length == 0 && next()
+    })
 }
 
 const createGuard = () => {return {install}}
 
 const lib_next = function (to, from, next, options) {
     return (path, noOpts) => {
-        let comTo = window._sunComponentsLib_v1.getCom(to.name);
-        let comFrom = window._sunComponentsLib_v1.getCom(from.name);
+        let comTo = window._sunComponentsLib_v1.getCom(to.name)
+        let comFrom = window._sunComponentsLib_v1.getCom(from.name)
 
         if (!comTo) {
-            window._sunComponentsLib_v1.pushEvent(to.name, "onshow", to.query);
-            comTo = {};
-        };
-
-        if (!comFrom) {
-            window._sunComponentsLib_v1.pushEvent(to.name, "onleave", to.query);
-            comFrom = {};
+            window._sunComponentsLib_v1.pushEvent(to.name, "onshow", to.query)
+            comTo = {}
         }
 
-        comTo.onshow && comTo.onshow(to.query);
-        comFrom.onleave && comFrom.onleave(to.name);
+        if (!comFrom) {
+            window._sunComponentsLib_v1.pushEvent(to.name, "onleave", to.query)
+            comFrom = {}
+        }
 
-        !noOpts && options && issueOption(options, to);
+        comTo.onshow && comTo.onshow(to.query)
+        comFrom.onleave && comFrom.onleave(to.name)
 
-        next(path || undefined);
+        !noOpts && options && issueOption(options, to)
+
+        next(path || undefined)
     }
 }
 
 export default function (router) {
-    let $V = Vue;
-    if (initState) return;
-    shortcut.setPage = window._setPage = VMpage => window._global__page = VMpage;
-    shortcut.getPage = window._getPage = () => window._global__page;
+    let $V = Vue
+    if (initState) return
+    shortcut.setPage = window._setPage = VMpage => window._global__page = VMpage
+    shortcut.getPage = window._getPage = () => window._global__page
     initGlobalLib($V)
-    $V.use(createGuard());
-    initState = true;
-    _ForEach(router);
+    $V.use(createGuard())
+    initState = true
+    _ForEach(router)
     return {
         config: options => {
-            if (!options || options.constructor.name !== "Object") return;
+            if (!options || options.constructor.name !== "Object") return
             Object.keys(compManGOLOpts).forEach(key => options[key] && (compManGOLOpts[key] = options[key]))
         }
     }
